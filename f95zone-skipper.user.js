@@ -1,12 +1,15 @@
 // ==UserScript==
 // @name         F95-Zone skipper.
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  This userscript skips masked f95 links for you.
 // @author       Cat-Ling
+// @homepageURL  https://github.com/Cat-Ling
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
 // @match        https://f95zone.to/masked/*
 // @grant        none
+// @downloadURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
+// @updateURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
 // ==/UserScript==
 
 (function() {
@@ -28,7 +31,7 @@
                 clearInterval(intervalId);
                 callback(hostLink);
             }
-        }, 100);
+        }, 500);
     }
   
     waitForHostLink(function(hostLink) {
