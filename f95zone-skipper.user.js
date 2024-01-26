@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         F95-Zone skipper
 // @namespace    -
-// @version      1.2.0
+// @version      1.2.1
 // @description  This userscript skips masked f95 links for you.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
