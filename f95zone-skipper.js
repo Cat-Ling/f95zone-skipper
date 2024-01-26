@@ -21,16 +21,6 @@
       element.dispatchEvent(event);
   };
 
-  var handleError = function(title, message, retry) {
-
-      console.error(title + ": " + message);
-      alert(title + "\n\n" + message);
-      if (retry) {
-
-          window.location.reload(true);
-      }
-  };
-
   function waitForHostLink(callback) {
       var intervalId = setInterval(function() {
           var hostLink = document.querySelector('.host_link');
@@ -42,7 +32,6 @@
   }
 
   waitForHostLink(function(hostLink) {
-
       simulateClick(hostLink);
   });
 })();
