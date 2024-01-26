@@ -13,7 +13,6 @@
 // @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
 // @downloadURL  -
 // @updateURL    -
-// @run-at       document-start
 // ==/UserScript==
 
 (function() {
