@@ -1,18 +1,19 @@
 // ==UserScript==
 // @name         F95-Zone skipper (beta)
 // @namespace    -
-// @version      0.1.1
+// @version      0.1.2
 // @description  This is an alternative version of f95zone-skipper that works even faster.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
 // @match        https://f95zone.to/masked/*
-// @exclude https://f95zone.to/masked/
+// @exclude      https://f95zone.to/masked/
 // @grant        none
-// @license GPL-2.0
-// @supportURL https://github.com/Cat-Ling/f95zone-skipper/issues
-// @downloadURL -
-// @updateURL -
+// @license      GPL-2.0
+// @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
+// @downloadURL  -
+// @updateURL    -
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
