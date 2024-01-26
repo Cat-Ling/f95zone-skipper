@@ -1,7 +1,16 @@
 ## F95-Zone Masked URL Skipper 🔞
 
+Confirmed working in -
+- Cromite (Android) (Native)
+- Firefox (Android) (Greasemonkey)
+- Chrome (Windows) (Tampermonkey)
+
+
+For support requests in case the script doesn't work as intended, create an issue and add `[support]` in the title. You must include your OS, OS version, and your userscript manager's name in the description.
+As for feature requests, use `[feature]`.
+
+
 ### Usage: ⚒
-This script has only been tested on Tampermonkey® (Windows). Post in [Discussions](https://github.com/Cat-Ling/f95zone-skipper/discussions/categories/show-and-tell) if it worked for you in other OSes and/or browsers.
 
 ### Installation: 💿
 1. Make sure you've installed [Tampermonkey](https://www.tampermonkey.net/)/[Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) or any other userscript manager.
