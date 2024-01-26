@@ -8,8 +8,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
 // @match        https://f95zone.to/masked/*
 // @grant        none
-// @downloadURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
-// @updateURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
+// @downloadURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper.user.js
+// @updateURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper.user.js
 // ==/UserScript==
 
 (function() {
