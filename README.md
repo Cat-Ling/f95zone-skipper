@@ -1,14 +1,13 @@
 ## F95-Zone Masked URL Skipper 🔞
 
+Chrome/Firefox desktop support is a given, the script will work as intended. As for Safari and other Apple jazz, I have no idea.
+
 Confirmed working in -
 - Cromite (Android) (Native)
 - Firefox (Android) (Greasemonkey)
-- Chrome (Windows) (Tampermonkey)
-
 
 For support requests in case the script doesn't work as intended, create an issue and add `[support]` in the title. You must include your OS, OS version, and your userscript manager's name in the description.
-As for feature requests, use `[feature]`.
-
+For feature requests, use `[feature]`.
 
 ### Usage: ⚒
 
