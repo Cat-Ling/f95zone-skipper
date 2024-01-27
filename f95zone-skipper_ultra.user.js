@@ -2,7 +2,7 @@
 // @name         F95-Zone skipper (beta)
 // @namespace    -
 // @version      0.1.3
-// @description  This is an alternative version of f95zone-skipper that works even faster.
+// @description  This is an alternative version of f95zone-skipper that works even faster. It is recommended if you want almost immediate skips.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
