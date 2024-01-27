@@ -2,7 +2,7 @@
 
 Chrome/Firefox desktop support is a given, the script will work as intended. As for Safari and other Apple jazz, I have no idea.
 
-Confirmed working in (only normal version) -
+Confirmed working in (including ultra version now) -
 - Cromite (Android) (Native)
 - Firefox (Android) (Greasemonkey)
 
