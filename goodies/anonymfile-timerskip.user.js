@@ -5,7 +5,7 @@
 // @description  Automatically starts file download without needing to wait for the timer to finish.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=anonymfile.com
 // @match        https://anonymfile.com/*
 // @exclude      https://anonymfile.com/
 // @license      GPL-2.0
