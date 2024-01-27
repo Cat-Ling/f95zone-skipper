@@ -2,9 +2,11 @@
 
 Chrome/Firefox desktop support is a given, the script will work as intended. As for Safari and other Apple jazz, I have no idea.
 
-Confirmed working in -
+Confirmed working in (only normal version) -
 - Cromite (Android) (Native)
 - Firefox (Android) (Greasemonkey)
+
+The ultra version is in beta, so it's compatibility may vary.
 
 For support requests in case the script doesn't work as intended, create an issue and add `[support]` in the title. You must include your OS, OS version, and your userscript manager's name in the description.
 For feature requests, use `[feature]`.
