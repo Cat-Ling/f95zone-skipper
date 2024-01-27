@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         F95-Zone skipper (beta)
 // @namespace    -
-// @version      0.1.2
+// @version      0.1.3
 // @description  This is an alternative version of f95zone-skipper that works even faster.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
