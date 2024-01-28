@@ -15,8 +15,9 @@ For feature requests, use `[feature]`.
 
 ### Installation: 💿
 1. Make sure you've installed [Tampermonkey](https://www.tampermonkey.net/)/[Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) or any other userscript manager.
-2. Click link below to install the userscript.
-   ## [INSTALL](https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper.user.js)
+2. Click link below to install one of these userscripts.
+   ## [INSTALL Skipper](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js)
+   ## [INSTALL Skipper Ultra](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js) (Beta) (Faster)
 
 
 ## Additional Notes: 📝
