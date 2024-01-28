@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anonym File Autodownloader
 // @namespace    -
-// @version      0.1
+// @version      0.2
 // @description  Automatically starts file download without needing to wait for the timer to finish.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
