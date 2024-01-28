@@ -10,8 +10,8 @@
 // @exclude      https://f95zone.to/masked/
 // @license      GPL-2.0
 // @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
-// @downloadURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper_ultra.user.js
-// @updateURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper_ultra.user.js
+// @downloadURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js
+// @updateURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js
 // ==/UserScript==
 
 (function() {
