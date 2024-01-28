@@ -11,8 +11,8 @@
 // @license      GPL-2.0
 // @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
-// @updateURL    https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
+// @downloadURL  https://github.com/Cat-Ling/f95zone-skipper/raw/main/goodies/anonymfile-timerskip.user.js
+// @updateURL    https://github.com/Cat-Ling/f95zone-skipper/raw/main/goodies/anonymfile-timerskip.user.js
 // ==/UserScript==
 
 (function() {
