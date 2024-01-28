@@ -11,12 +11,46 @@
 // @license      GPL-2.0
 // @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
 // @grant        none
-// @downloadURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
-// @updateURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
+// @downloadURL  https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
+// @updateURL    https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/goodies/anonymfile-timerskip.user.js
 // ==/UserScript==
 
 (function() {
     'use strict';
+
+    function showToast(message) {
+        // Create toast container
+        var toastContainer = document.createElement('div');
+        toastContainer.id = 'customToast';
+        toastContainer.style.position = 'fixed';
+        toastContainer.style.bottom = '20px';
+        toastContainer.style.left = '50%';
+        toastContainer.style.transform = 'translateX(-50%)';
+        toastContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        toastContainer.style.color = '#fff';
+        toastContainer.style.padding = '30px'; // Increased padding
+        toastContainer.style.fontSize = '30px'; // Increased font size
+        toastContainer.style.borderRadius = '5px';
+        toastContainer.style.transition = 'opacity 0.5s';
+        toastContainer.textContent = message;
+
+        // Append toast container to the body
+        document.body.appendChild(toastContainer);
+
+        // Show toast
+        setTimeout(function() {
+            toastContainer.style.opacity = '1';
+        }, 100);
+
+        // Hide toast after 3 seconds
+        setTimeout(function() {
+            toastContainer.style.opacity = '0';
+            // Remove toast from DOM after fade out
+            setTimeout(function() {
+                toastContainer.parentNode.removeChild(toastContainer);
+            }, 500);
+        }, 3000);
+    }
 
     function extractAndRedirect() {
         var elements = document.querySelectorAll('*');
@@ -29,6 +63,7 @@
                 var endIndex = element.outerHTML.indexOf('"', startIndex);
                 var link = element.outerHTML.slice(startIndex, endIndex);
                 window.location.href = "https://" + link;
+                showToast("Download Triggered.");
                 return;
             }
         }
