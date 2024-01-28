@@ -63,7 +63,7 @@
                 var endIndex = element.outerHTML.indexOf('"', startIndex);
                 var link = element.outerHTML.slice(startIndex, endIndex);
                 window.location.href = "https://" + link;
-                showToast("Download Triggered.");
+                showToast("Download Started");
                 return;
             }
         }
