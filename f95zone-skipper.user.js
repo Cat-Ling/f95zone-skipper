@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         F95-Zone skipper
 // @namespace    -
-// @version      1.2.2
+// @version      1.2.3
 // @description  This userscript skips masked f95 links for you.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
@@ -11,8 +11,8 @@
 // @grant        none
 // @license GPL-2.0
 // @supportURL https://github.com/Cat-Ling/f95zone-skipper/issues
-// @downloadURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper.user.js
-// @updateURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper.user.js
+// @downloadURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
+// @updateURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js
 // ==/UserScript==
 
 (function() {
