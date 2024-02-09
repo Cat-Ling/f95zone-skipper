@@ -1,4 +1,4 @@
-## F95-Zone Masked URL Skipper 🔞
+## F95-Zone.to Masked URL Skipper 🔞
 
 Chrome/Firefox desktop support is a given, the script will work as intended. As for Safari and other Apple jazz, I have no idea.
 
