@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         F95-Zone skipper (beta)
+// @name         F95-Zone skipper Ultra
 // @namespace    -
-// @version      0.1.4
+// @version      0.1.5
 // @description  This is an alternative version of f95zone-skipper that works even faster. It is recommended if you want almost immediate skips.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
