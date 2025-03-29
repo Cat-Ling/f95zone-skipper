@@ -6,10 +6,10 @@
    - [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag) for Chrome
    - [Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) or [Violentmonkey](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) for Firefox
 2. Install one of these userscripts:
-   - **[Standard Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js)** (Auto-clicks the download button)
-   - **[Ultra Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js)** (Faster)
+   - **[Ultra Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js)** (Faster) (Recommended)
+   - **[Legacy Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js)** (Auto-clicks the download button)
 
-### **Extension: 💿**
+### **Extension: DISCONTINUED (Since I'm not an extension developer.) 💿**
 
 1. There is also a **Chrome extension** available. It functions the same way as the Ultra Version.
 2. Download the **zip file**:
@@ -22,7 +22,6 @@
 
 ---
 
-The **ultra version** is out of beta, but compatibility may vary.
 
 ### Support Requests:
 If the script doesn’t work as expected, please create an issue with `[support]` in the title. Make sure to include your **OS**, **OS version**, and the name of your **userscript manager** in the description.
