@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         F95-Zone skipper Ultra
+// @name         F95-Zone Skipper Ultra
 // @namespace    -
 // @version      0.1.5
-// @description  This is an alternative version of f95zone-skipper that works even faster. It is recommended if you want almost immediate skips.
+// @description  Skips masked URLs on F95zone (F95Zone.to) automatically and seamlessly.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=f95zone.to
@@ -10,8 +10,8 @@
 // @exclude      https://f95zone.to/masked/
 // @license      GPL-2.0
 // @supportURL   https://github.com/Cat-Ling/f95zone-skipper/issues
-// @downloadURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js
-// @updateURL https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js
+// @downloadURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper_ultra.user.js
+// @updateURL https://raw.githubusercontent.com/Cat-Ling/f95zone-skipper/main/f95zone-skipper_ultra.user.js
 // ==/UserScript==
 
 (function() {
