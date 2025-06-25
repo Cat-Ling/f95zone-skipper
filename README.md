@@ -9,16 +9,6 @@
    - **[Ultra Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper_ultra.user.js)** (Faster) (Recommended)
    - **[Legacy Version](https://github.com/Cat-Ling/f95zone-skipper/raw/main/f95zone-skipper.user.js)** (Auto-clicks the download button)
 
-### **Extension: DISCONTINUED (Since I'm not an extension developer.) 💿**
-
-1. There is also a **Chrome extension** available. It functions the same way as the Ultra Version.
-2. Download the **zip file**:
-   - **[Extension](https://cdn.jsdelivr.net/gh/Cat-Ling/f95zone-skipper@main/F95-skipper_1.4_chrome_extension_beta.zip)** (Beta)
-   - It's in beta because it hasn't been tested on any platform other than Windows (Chrome) and Android (Kiwi Browser).
-3. Extract the zip file to a suitable location.
-4. Go to **Chrome Menu > Extensions > Manage Extensions**.
-5. Enable **Developer Mode** on the Extensions page.
-6. Click **"Load Unpacked"** and select the folder where you extracted the extension. You're all set!
 
 ---
 
