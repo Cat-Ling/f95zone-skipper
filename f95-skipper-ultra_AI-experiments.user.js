@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         F95-Zone Skipper Ultra (EARLY AI TESTS)
 // @namespace    f95-skipper-2-aitest
-// @version      0.1.7
+// @version      0.1.8
 // @description  F95Zone /dl/ and legacy /masked/ skipper.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
@@ -25,6 +25,9 @@
     var F95_SITE_KEY = '6LcwQ5kUAAAAAAI-_CXQtlnhdMjmFDt-MruZ2gov';
     var DL_CODE_DELAY_MS = 2150;
     var DL_FETCH_TIMEOUT_MS = 20000;
+    var DL_CAPTCHA_POLL_MS = 250;
+    var DL_CAPTCHA_API_TIMEOUT_MS = 60000;
+    var DL_REDIRECT_PAINT_MS = 450;
     var MASKED_TIMEOUT_MS = 20000;
 
     function onDomReady(callback) {
@@ -126,6 +129,17 @@
         var cfProbeTimer = null;
         var fetchTimeoutTimer = null;
 
+        var dlRedirectTimer = null;
+        var dlStatusPanel = null;
+        var dlStatusTitle = null;
+        var dlStatusLink = null;
+
+        var dlCaptchaTimer = null;
+        var dlCaptchaDetectedAt = null;
+        var dlCaptchaExecuteAttempted = false;
+        var dlCaptchaExecuteAt = 0;
+        var dlCaptchaNativeFallback = false;
+
         var dlPage = null;
         var dlForm = null;
         var dlPageDetectedAt = null;
@@ -146,7 +160,7 @@
         var dlFetchChallengeReloadAttempted = false;
 
         var dlFetchChallengeRetryKey =
-            'f95zone-skipper:dl-challenge-retry:' + pathname;
+            'f95zone-skipper:dl-challenge-retry:' + window.location.href;
 
         function dlCameBack() {
             try {
@@ -296,6 +310,244 @@
                 '';
         }
 
+        // Reuse the exact F95 redirector presentation while the automated
+        // POST is waiting. The form remains in the DOM until FormData has
+        // been serialized, so its hidden fields and CAPTCHA response survive.
+        function dlInstallStatusStyles() {
+            if (document.getElementById('f95-skipper-status-style')) return;
+
+            var style = document.createElement('style');
+            style.id = 'f95-skipper-status-style';
+            style.textContent =
+                '.f95dl-spinner{display:inline-block;width:1em;height:1em;margin-right:.5em;' +
+                'border:2px solid currentColor;border-right-color:transparent;border-radius:50%;' +
+                'vertical-align:-.15em;box-sizing:border-box;animation:f95dl-spin .7s linear infinite}' +
+                '@keyframes f95dl-spin{to{transform:rotate(360deg)}}' +
+                '.f95dl-going{max-width:560px;margin:28px auto;text-align:center}' +
+                '.f95dl-going-title{font-size:1.5rem;font-weight:600}' +
+                '.f95dl-going-link{margin-top:10px;color:#9398a0;font-size:1.3rem}' +
+                '@media(prefers-reduced-motion:reduce){.f95dl-spinner{animation-duration:2s}}';
+
+            (document.head || document.documentElement).appendChild(style);
+        }
+
+        function dlGetStatusRoot() {
+            return document.querySelector('.f95dl-page') ||
+                document.querySelector('.f95dl-shell-main') ||
+                document.querySelector('main') ||
+                document.body ||
+                document.documentElement;
+        }
+
+        function dlGetInitialStatusMessage(form) {
+            var hostElement = form && form.querySelector('.f95dl-link-host');
+            var host = hostElement
+                ? (hostElement.textContent || '').trim()
+                : '';
+
+            return host
+                ? 'Opening ' + host + '…'
+                : 'Generating your link…';
+        }
+
+        function dlCreateStatusPanel(message) {
+            var panel = document.createElement('div');
+            panel.className = 'blockMessage f95dl-going';
+            panel.setAttribute('role', 'status');
+            panel.setAttribute('aria-live', 'polite');
+            panel.setAttribute('data-f95-skipper-status', '1');
+
+            var title = document.createElement('div');
+            title.className = 'f95dl-going-title';
+
+            var spinner = document.createElement('span');
+            spinner.className = 'f95dl-spinner';
+            spinner.setAttribute('aria-hidden', 'true');
+
+            title.appendChild(spinner);
+            title.appendChild(document.createTextNode(message || 'Generating your link…'));
+            panel.appendChild(title);
+
+            return panel;
+        }
+
+        function dlShowActivity(message) {
+            if (dlCancelled || dlRedirecting) return;
+
+            dlInstallStatusStyles();
+
+            if (!dlStatusPanel || !dlStatusPanel.isConnected) {
+                dlStatusPanel = dlCreateStatusPanel(message);
+                dlStatusTitle = dlStatusPanel.querySelector('.f95dl-going-title');
+                dlStatusLink = null;
+
+                var root = dlGetStatusRoot();
+                if (root) {
+                    root.insertBefore(dlStatusPanel, root.firstChild);
+                }
+                return;
+            }
+
+            if (dlStatusTitle) {
+                var spinner = dlStatusTitle.querySelector('.f95dl-spinner');
+                dlStatusTitle.textContent = '';
+
+                if (spinner) {
+                    dlStatusTitle.appendChild(spinner);
+                } else {
+                    spinner = document.createElement('span');
+                    spinner.className = 'f95dl-spinner';
+                    spinner.setAttribute('aria-hidden', 'true');
+                    dlStatusTitle.appendChild(spinner);
+                }
+
+                dlStatusTitle.appendChild(
+                    document.createTextNode(message || 'Generating your link…')
+                );
+            }
+        }
+
+        function dlShowResolvedWrapper(sourceWrapper, destination) {
+            dlInstallStatusStyles();
+
+            var sourceIsLive = !!(sourceWrapper && sourceWrapper.isConnected);
+
+            // If the wrapper came from the live document, neutralize the
+            // original node before cloning it so XenForo cannot race our
+            // short paint delay with its own immediate location.replace().
+            if (sourceIsLive) {
+                sourceWrapper.removeAttribute('data-xf-init');
+                sourceWrapper.removeAttribute('data-url');
+                sourceWrapper.removeAttribute('data-f95dl-go-url');
+            }
+
+            var panel = sourceWrapper
+                ? sourceWrapper.cloneNode(true)
+                : dlCreateStatusPanel('Opening your download host…');
+
+            // Do not let XenForo's native handler race our short paint delay.
+            panel.removeAttribute('data-xf-init');
+            panel.removeAttribute('data-url');
+            panel.removeAttribute('data-f95dl-go-url');
+            panel.setAttribute('role', 'status');
+            panel.setAttribute('aria-live', 'polite');
+            panel.setAttribute('data-f95-skipper-status', '1');
+
+            var title = panel.querySelector('.f95dl-going-title');
+            if (!title) {
+                title = document.createElement('div');
+                title.className = 'f95dl-going-title';
+
+                var spinner = document.createElement('span');
+                spinner.className = 'f95dl-spinner';
+                spinner.setAttribute('aria-hidden', 'true');
+
+                title.appendChild(spinner);
+                title.appendChild(document.createTextNode('Opening your download host…'));
+                panel.insertBefore(title, panel.firstChild);
+            } else if (!title.querySelector('.f95dl-spinner')) {
+                var titleSpinner = document.createElement('span');
+                titleSpinner.className = 'f95dl-spinner';
+                titleSpinner.setAttribute('aria-hidden', 'true');
+                title.insertBefore(titleSpinner, title.firstChild);
+            }
+
+            var linkContainer = panel.querySelector('.f95dl-going-link');
+            if (!linkContainer) {
+                linkContainer = document.createElement('div');
+                linkContainer.className = 'f95dl-going-link';
+                panel.appendChild(linkContainer);
+            }
+
+            var link = linkContainer.querySelector('a');
+            if (!link) {
+                link = document.createElement('a');
+                linkContainer.textContent = 'Nothing happening? ';
+                linkContainer.appendChild(link);
+            }
+
+            link.href = destination;
+            link.rel = 'noopener';
+
+            if (!link.textContent.trim()) {
+                var host = new URL(destination).hostname;
+                link.textContent = 'Continue to ' + host;
+            }
+
+            link.addEventListener('click', function () {
+                if (dlRedirectTimer !== null) {
+                    window.clearTimeout(dlRedirectTimer);
+                    dlRedirectTimer = null;
+                }
+            }, { once: true });
+
+            if (dlStatusPanel && dlStatusPanel.parentNode) {
+                dlStatusPanel.parentNode.replaceChild(panel, dlStatusPanel);
+
+                if (
+                    sourceIsLive &&
+                    sourceWrapper !== dlStatusPanel &&
+                    sourceWrapper.parentNode
+                ) {
+                    sourceWrapper.parentNode.removeChild(sourceWrapper);
+                }
+            } else if (sourceIsLive && sourceWrapper.parentNode) {
+                sourceWrapper.parentNode.replaceChild(panel, sourceWrapper);
+            } else {
+                var root = dlGetStatusRoot();
+                if (root) root.insertBefore(panel, root.firstChild);
+            }
+
+            dlStatusPanel = panel;
+            dlStatusTitle = title;
+            dlStatusLink = link;
+
+            return panel;
+        }
+
+        function dlBeginRedirect(destination, sourceWrapper) {
+            if (dlRedirecting || !destination) return;
+
+            dlRedirecting = true;
+            safeSessionRemove(dlFetchChallengeRetryKey);
+            dlStopObserver();
+            dlStopCaptchaMonitor();
+
+            if (dlTimer !== null) {
+                window.clearTimeout(dlTimer);
+                dlTimer = null;
+            }
+
+            if (cfProbeTimer !== null) {
+                window.clearTimeout(cfProbeTimer);
+                cfProbeTimer = null;
+            }
+
+            if (fetchTimeoutTimer !== null) {
+                window.clearTimeout(fetchTimeoutTimer);
+                fetchTimeoutTimer = null;
+            }
+
+            dlShowResolvedWrapper(sourceWrapper, destination);
+
+            // Give the browser two frames plus a short interval to paint the
+            // spinner and provider-specific fallback link before leaving.
+            var navigate = function () {
+                dlRedirectTimer = window.setTimeout(function () {
+                    dlRedirectTimer = null;
+                    window.location.replace(destination);
+                }, DL_REDIRECT_PAINT_MS);
+            };
+
+            if (typeof window.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(function () {
+                    window.requestAnimationFrame(navigate);
+                });
+            } else {
+                navigate();
+            }
+        }
+
         function dlStopObserver() {
             if (dlObserver && dlObserverActive) {
                 dlObserver.disconnect();
@@ -342,6 +594,7 @@
                             dlEnterChallengeMode();
                         } else {
                             dlArm();
+
                             cfProbeTimer = window.setTimeout(
                                 fallbackProbe,
                                 750
@@ -372,19 +625,7 @@
 
                 if (!destination) continue;
 
-                dlRedirecting = true;
-                safeSessionRemove(dlFetchChallengeRetryKey);
-                dlStopObserver();
-
-                if (cfProbeTimer !== null) {
-                    window.clearTimeout(cfProbeTimer);
-                }
-
-                if (fetchTimeoutTimer !== null) {
-                    window.clearTimeout(fetchTimeoutTimer);
-                }
-
-                window.location.replace(destination);
+                dlBeginRedirect(destination, wrappers[i]);
                 return true;
             }
 
@@ -450,16 +691,220 @@
             }
         }
 
-        function dlHasCaptcha(form) {
-            if (!form) return false;
+        // F95 currently renders /dl/ verification through XenForo's
+        // invisible hCaptcha handler. Keep that existing widget and callback;
+        // never replace it with a second render() call.
+        function dlGetHCaptchaContainer(form) {
+            if (!form) return null;
+
+            return form.querySelector(
+                '[data-xf-init~="h-captcha"], ' +
+                '.h-captcha[data-sitekey], ' +
+                '[data-sitekey][data-invisible]'
+            );
+        }
+
+        function dlHasHCaptcha(form) {
+            return !!dlGetHCaptchaContainer(form);
+        }
+
+        function dlHasOtherCaptcha(form) {
+            if (!form || dlHasHCaptcha(form)) return false;
 
             return !!form.querySelector(
-                '.g-recaptcha, .h-captcha, .cf-turnstile, ' +
-                '[data-xf-init*="captcha"], [data-sitekey], ' +
-                'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], ' +
+                '.g-recaptcha, .cf-turnstile, ' +
+                '[data-xf-init~="recaptcha"], ' +
+                '[data-xf-init~="turnstile"], ' +
+                'iframe[src*="recaptcha"], ' +
                 'iframe[src*="challenges.cloudflare.com"], ' +
                 'input[name="cf-turnstile-response"]'
             );
+        }
+
+        function dlReadHCaptchaToken(form) {
+            if (!form) return '';
+
+            // hCaptcha inserts h-captcha-response into the owning form.
+            // F95's compatibility configuration may also populate the
+            // g-recaptcha-response alias with the same token.
+            var selectors = [
+                'textarea[name="h-captcha-response"]',
+                'input[name="h-captcha-response"]',
+                'textarea[name="g-recaptcha-response"]',
+                'input[name="g-recaptcha-response"]'
+            ];
+
+            for (var i = 0; i < selectors.length; i++) {
+                var field = form.querySelector(selectors[i]);
+
+                var value = field && typeof field.value === 'string'
+                    ? field.value.trim()
+                    : '';
+
+                if (value.length > 20) return value;
+            }
+
+            return '';
+        }
+
+        function dlStopCaptchaMonitor() {
+            if (dlCaptchaTimer !== null) {
+                window.clearInterval(dlCaptchaTimer);
+                dlCaptchaTimer = null;
+            }
+        }
+
+        function dlCaptchaSolved(form) {
+            if (
+                dlCancelled ||
+                dlRedirecting ||
+                dlRequestStarted ||
+                dlCaptchaNativeFallback
+            ) {
+                return false;
+            }
+
+            var token = dlReadHCaptchaToken(form);
+            if (!token) return false;
+
+            dlStopCaptchaMonitor();
+            dlPopulateForm(dlPage, form);
+
+            console.info(
+                '[F95-Zone Skipper Ultra] hCaptcha response detected; continuing download.'
+            );
+
+            dlScheduleRequest();
+            return true;
+        }
+
+        function dlTryExecuteHCaptcha(form, manualRetry) {
+            if (
+                dlCancelled ||
+                dlRedirecting ||
+                dlRequestStarted
+            ) {
+                return false;
+            }
+
+            // Automatic execution happens once. A real Continue click may
+            // retry a dismissed/failed invisible challenge after a cooldown.
+            if (
+                dlCaptchaExecuteAttempted &&
+                (!manualRetry || performance.now() - dlCaptchaExecuteAt < 5000)
+            ) {
+                return false;
+            }
+
+            var container = dlGetHCaptchaContainer(form);
+
+            if (!container || !container.hasAttribute('data-invisible')) {
+                return false;
+            }
+
+            if (!window.hcaptcha || typeof window.hcaptcha.execute !== 'function') {
+                return false;
+            }
+
+            // Wait for XenForo's own HCaptcha handler to render its widget.
+            // The generated response textarea or iframe is a reliable signal.
+            var responseField = form.querySelector(
+                'textarea[name="h-captcha-response"], ' +
+                'input[name="h-captcha-response"]'
+            );
+
+            var widgetFrame = container.querySelector('iframe');
+
+            if (!responseField && !widgetFrame) return false;
+
+            try {
+                // hCaptcha defaults to the first rendered widget when no ID
+                // is supplied. F95's /dl/ form has one widget.
+                window.hcaptcha.execute();
+
+                dlCaptchaExecuteAttempted = true;
+                dlCaptchaExecuteAt = performance.now();
+
+                console.info(
+                    '[F95-Zone Skipper Ultra] Started the page hCaptcha workflow; waiting for verification.'
+                );
+
+                return true;
+            } catch (error) {
+                // XenForo may still be finishing widget initialization.
+                // The monitor retries without rendering a duplicate widget.
+                return false;
+            }
+        }
+
+        function dlCheckHCaptcha(form) {
+            if (
+                dlCancelled ||
+                dlRedirecting ||
+                dlRequestStarted ||
+                dlCaptchaNativeFallback
+            ) {
+                dlStopCaptchaMonitor();
+                return;
+            }
+
+            if (
+                !document.documentElement ||
+                !document.documentElement.contains(form)
+            ) {
+                dlStopCaptchaMonitor();
+                return;
+            }
+
+            if (dlCaptchaSolved(form)) return;
+
+            var container = dlGetHCaptchaContainer(form);
+
+            if (!container) {
+                dlStopCaptchaMonitor();
+                return;
+            }
+
+            if (dlCaptchaDetectedAt === null) {
+                dlCaptchaDetectedAt = performance.now();
+            }
+
+            if (container.hasAttribute('data-invisible')) {
+                dlTryExecuteHCaptcha(form);
+
+                // Give the challenge time to be completed. If it has not
+                // completed, leave F95's native flow usable.
+                if (
+                    performance.now() -
+                    (dlCaptchaExecuteAttempted
+                        ? dlCaptchaExecuteAt
+                        : dlCaptchaDetectedAt) >= DL_CAPTCHA_API_TIMEOUT_MS
+                ) {
+                    dlCaptchaNativeFallback = true;
+                    dlStopCaptchaMonitor();
+
+                    console.warn(
+                        '[F95-Zone Skipper Ultra] hCaptcha did not complete in time. ' +
+                        'Falling back to F95 native Continue flow.'
+                    );
+                }
+            }
+        }
+
+        function dlStartCaptchaMonitor(form) {
+            if (!dlHasHCaptcha(form) || dlCaptchaNativeFallback) return;
+
+            if (dlCaptchaDetectedAt === null) {
+                dlCaptchaDetectedAt = performance.now();
+            }
+
+            if (dlCaptchaTimer === null) {
+                dlCaptchaTimer = window.setInterval(function () {
+                    dlCheckHCaptcha(form);
+                }, DL_CAPTCHA_POLL_MS);
+            }
+
+            dlCheckHCaptcha(form);
         }
 
         function dlReadCode(page, form) {
@@ -496,6 +941,15 @@
 
         function dlPopulateForm(page, form) {
             var codeState = dlReadCode(page, form);
+
+            // The captured native /dl/ POST includes had_check=1 even though
+            // the initial HTML leaves this hidden field empty. Our fetch-based
+            // submit must reproduce that native form state explicitly.
+            var hadCheck = form.querySelector('input[name="had_check"]');
+
+            if (hadCheck) {
+                hadCheck.value = '1';
+            }
 
             var token = form.querySelector(
                 'input[name="_xfToken"]'
@@ -565,6 +1019,19 @@
                 fetchTimeoutTimer = null;
             }
 
+            if (dlRedirectTimer !== null) {
+                window.clearTimeout(dlRedirectTimer);
+                dlRedirectTimer = null;
+            }
+
+            if (dlStatusPanel && dlStatusPanel.parentNode) {
+                dlStatusPanel.parentNode.removeChild(dlStatusPanel);
+            }
+
+            dlStatusPanel = dlStatusTitle = dlStatusLink = null;
+
+            dlStopCaptchaMonitor();
+
             if (dlAbortController) {
                 try {
                     dlAbortController.abort();
@@ -577,6 +1044,7 @@
         function dlPauseAfterRepeatedChallenge() {
             dlRequestStarted = false;
             dlPausedAfterChallenge = true;
+            dlStopCaptchaMonitor();
 
             console.warn(
                 '[F95-Zone Skipper Ultra] A second Cloudflare challenge ' +
@@ -637,7 +1105,15 @@
                 return;
             }
 
-            if (dlHasCaptcha(dlForm)) return;
+            if (dlHasHCaptcha(dlForm)) {
+                if (!dlReadHCaptchaToken(dlForm)) {
+                    dlStartCaptchaMonitor(dlForm);
+                    return;
+                }
+            } else if (dlHasOtherCaptcha(dlForm)) {
+                // Unknown CAPTCHA integrations remain under F95's native flow.
+                return;
+            }
 
             var codeState = dlPopulateForm(dlPage, dlForm);
 
@@ -677,6 +1153,7 @@
                 return;
             }
 
+            dlShowActivity(dlGetInitialStatusMessage(dlForm));
             dlRequestStarted = true;
 
             if (typeof AbortController === 'function') {
@@ -753,11 +1230,7 @@
                         : null;
 
                     if (destination) {
-                        safeSessionRemove(dlFetchChallengeRetryKey);
-                        dlRedirecting = true;
-                        dlStopObserver();
-
-                        window.location.replace(destination);
+                        dlBeginRedirect(destination, wrapper);
                         return;
                     }
 
@@ -797,6 +1270,20 @@
                 return;
             }
 
+            // Show the same F95 spinner immediately during the native 2.15s
+            // script-check delay. When hCaptcha is present, only show it once
+            // the human has completed the challenge and a token is available.
+            if (
+                dlHasHCaptcha(dlForm) &&
+                !dlReadHCaptchaToken(dlForm)
+            ) {
+                return;
+            }
+
+            if (dlHasOtherCaptcha(dlForm)) return;
+
+            dlShowActivity(dlGetInitialStatusMessage(dlForm));
+
             var remaining = dlGetRemainingDelay();
 
             if (remaining > 0) {
@@ -832,7 +1319,14 @@
             var form = (button && button.form) ||
                 page.querySelector('form.f95dl-box');
 
-            if (!button || !form || dlHasCaptcha(form)) return;
+            if (!button || !form) return;
+
+            var hasHCaptcha = dlHasHCaptcha(form);
+            var hasOtherCaptcha = dlHasOtherCaptcha(form);
+
+            // Do not take over unknown CAPTCHA integrations. The hCaptcha
+            // integration below is explicitly handled using its existing widget.
+            if (hasOtherCaptcha && !hasHCaptcha) return;
 
             // Avoid submitting mid-parse before the hidden code input appears.
             // If data-code exists, wait for its field while the parser is active.
@@ -891,21 +1385,44 @@
                 form.dataset.f95SkipSubmitListener = '1';
 
                 form.addEventListener('submit', function (event) {
-                    // After repeated challenges, permit ordinary XenForo
-                    // submission instead of intercepting the user.
+                    // After a repeated Cloudflare challenge, explicit user
+                    // action, or an hCaptcha initialization failure, permit
+                    // F95's own native submission path.
                     if (
                         dlPausedAfterChallenge ||
                         dlCancelled ||
-                        dlHasCaptcha(form)
+                        dlCaptchaNativeFallback
                     ) {
                         return;
                     }
+
+                    if (dlHasHCaptcha(form)) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+
+                        if (!dlCaptchaSolved(form)) {
+                            dlStartCaptchaMonitor(form);
+                            dlTryExecuteHCaptcha(form, true);
+                        }
+
+                        return;
+                    }
+
+                    if (dlHasOtherCaptcha(form)) return;
 
                     event.preventDefault();
                     event.stopImmediatePropagation();
 
                     dlScheduleRequest();
                 }, true);
+            }
+
+            if (hasHCaptcha) {
+                // Start the invisible verification workflow automatically.
+                // The challenge itself remains human-controlled; navigation
+                // resumes only after hCaptcha populates its response field.
+                dlStartCaptchaMonitor(form);
+                return;
             }
 
             dlScheduleRequest();
