@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         F95-Zone Skipper Ultra (EARLY AI TESTS)
 // @namespace    f95-skipper-2-aitest
-// @version      0.1.8
+// @version      0.1.9
 // @description  F95Zone /dl/ and legacy /masked/ skipper.
 // @author       Cat-Ling
 // @homepageURL  https://github.com/Cat-Ling
@@ -23,7 +23,11 @@
     'use strict';
 
     var F95_SITE_KEY = '6LcwQ5kUAAAAAAI-_CXQtlnhdMjmFDt-MruZ2gov';
-    var DL_CODE_DELAY_MS = 2150;
+
+    // F95's captured XenForo handler uses 2100ms. Add a small activation
+    // margin and measure from DOMContentLoaded/page discovery, not responseStart.
+    var DL_CODE_DELAY_MS = 2350;
+
     var DL_FETCH_TIMEOUT_MS = 20000;
     var DL_CAPTCHA_POLL_MS = 250;
     var DL_CAPTCHA_API_TIMEOUT_MS = 60000;
@@ -158,9 +162,21 @@
         var dlChallengeBackoffMs = 1500;
         var dlAbortController = null;
         var dlFetchChallengeReloadAttempted = false;
+        var dlNativeFallback = false;
+        var dlPriorPostAttempt = false;
+        var dlNativeFallbackTimer = null;
+        var dlButtonReadyTimer = null;
+        var dlButtonReadyAttempts = 0;
+        var dlOriginalAutoAttribute = null;
+        var dlAutoAttributeSaved = false;
+        var dlSubmitHandler = null;
+        var dlSubmitForm = null;
 
         var dlFetchChallengeRetryKey =
             'f95zone-skipper:dl-challenge-retry:' + window.location.href;
+
+        var dlPostAttemptKey =
+            'f95zone-skipper:dl-post-attempt:' + window.location.href;
 
         function dlCameBack() {
             try {
@@ -201,6 +217,10 @@
                 sessionStorage.removeItem(key);
             } catch (error) {}
         }
+
+        // A fetch POST can reach F95 even when the browser loses the response.
+        // Never issue a second automatic POST after an ambiguous outcome.
+        dlPriorPostAttempt = safeSessionGet(dlPostAttemptKey) === '1';
 
         function dlHasNativePageMarkup(doc) {
             return !!doc.querySelector(
@@ -284,7 +304,7 @@
                 /\/cdn-cgi\/challenge-platform\//i.test(html);
 
             var turnstile =
-                /challenges\.cloudflare\.com\/turnstile\//i.test(html);
+                /challenges\.cloudflare.com\/turnstile\//i.test(html);
 
             var challengeText =
                 /performing security verification|verification successful\. waiting for|this website uses a security service to protect against malicious bots/i
@@ -407,6 +427,194 @@
             }
         }
 
+        function dlRememberAutoAttribute(page) {
+            if (!page || dlAutoAttributeSaved) return;
+
+            dlOriginalAutoAttribute = page.getAttribute('data-auto');
+            dlAutoAttributeSaved = true;
+        }
+
+        function dlRestoreAutoAttribute() {
+            if (!dlAutoAttributeSaved || !dlPage || !dlPage.isConnected) {
+                return;
+            }
+
+            if (dlOriginalAutoAttribute === null) {
+                dlPage.removeAttribute('data-auto');
+            } else {
+                dlPage.setAttribute('data-auto', dlOriginalAutoAttribute);
+            }
+        }
+
+        function dlRemoveSubmitInterceptor() {
+            if (dlSubmitForm && dlSubmitHandler) {
+                dlSubmitForm.removeEventListener(
+                    'submit',
+                    dlSubmitHandler,
+                    true
+                );
+                delete dlSubmitForm.dataset.f95SkipSubmitListener;
+            }
+
+            dlSubmitHandler = null;
+            dlSubmitForm = null;
+        }
+
+        function dlShowNativeFallback(message) {
+            if (dlCancelled || dlRedirecting) return;
+
+            dlNativeFallback = true;
+            dlRequestStarted = true;
+
+            if (dlTimer !== null) {
+                window.clearTimeout(dlTimer);
+                dlTimer = null;
+            }
+
+            if (cfProbeTimer !== null) {
+                window.clearTimeout(cfProbeTimer);
+                cfProbeTimer = null;
+            }
+
+            if (fetchTimeoutTimer !== null) {
+                window.clearTimeout(fetchTimeoutTimer);
+                fetchTimeoutTimer = null;
+            }
+
+            if (dlNativeFallbackTimer !== null) {
+                window.clearTimeout(dlNativeFallbackTimer);
+                dlNativeFallbackTimer = null;
+            }
+
+            if (dlButtonReadyTimer !== null) {
+                window.clearTimeout(dlButtonReadyTimer);
+                dlButtonReadyTimer = null;
+            }
+
+            dlStopCaptchaMonitor();
+            dlStopObserver();
+            dlRemoveSubmitInterceptor();
+            dlRestoreAutoAttribute();
+
+            dlShowActivity(message ||
+                'Automatic request could not be verified. Continue with F95 manually.');
+
+            if (dlStatusTitle) {
+                var fallbackSpinner = dlStatusTitle.querySelector('.f95dl-spinner');
+                if (fallbackSpinner) fallbackSpinner.remove();
+            }
+
+            if (!dlStatusPanel || !dlStatusPanel.isConnected) return;
+
+            var existing = dlStatusPanel.querySelector(
+                '[data-f95-skipper-native-fallback]'
+            );
+
+            if (existing) return;
+
+            var actions = document.createElement('div');
+            actions.className = 'f95dl-going-link';
+            actions.setAttribute('data-f95-skipper-native-fallback', '1');
+
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Continue using F95';
+            button.style.cssText =
+                'margin:12px 0 0;padding:9px 16px;border:1px solid currentColor;' +
+                'border-radius:4px;background:transparent;color:inherit;' +
+                'font:inherit;cursor:pointer';
+
+            button.addEventListener('click', function () {
+                dlContinueWithNativeFlow();
+            }, { once: true });
+
+            actions.appendChild(button);
+            dlStatusPanel.appendChild(actions);
+        }
+
+        function dlContinueWithNativeFlow() {
+            if (dlCancelled || dlRedirecting || !dlForm) return;
+
+            // This is an explicit user action. Clear the guard so the native
+            // F95 form flow, rather than another automatic fetch, can proceed.
+            safeSessionRemove(dlPostAttemptKey);
+
+            dlNativeFallback = true;
+            dlRequestStarted = false;
+            dlRemoveSubmitInterceptor();
+            dlStopObserver();
+            dlStopCaptchaMonitor();
+
+            if (dlTimer !== null) {
+                window.clearTimeout(dlTimer);
+                dlTimer = null;
+            }
+
+            if (cfProbeTimer !== null) {
+                window.clearTimeout(cfProbeTimer);
+                cfProbeTimer = null;
+            }
+
+            if (fetchTimeoutTimer !== null) {
+                window.clearTimeout(fetchTimeoutTimer);
+                fetchTimeoutTimer = null;
+            }
+
+            if (dlButtonReadyTimer !== null) {
+                window.clearTimeout(dlButtonReadyTimer);
+                dlButtonReadyTimer = null;
+            }
+
+            dlRestoreAutoAttribute();
+
+            if (dlStatusPanel && dlStatusPanel.parentNode) {
+                dlStatusPanel.parentNode.removeChild(dlStatusPanel);
+            }
+
+            dlStatusPanel = dlStatusTitle = dlStatusLink = null;
+
+            var attempts = 0;
+            var maxAttempts = 80;
+
+            function submitWhenReady() {
+                dlNativeFallbackTimer = null;
+
+                if (dlCancelled || dlRedirecting || !dlForm ||
+                    !dlForm.isConnected) {
+                    return;
+                }
+
+                var button = dlGetContinueButton();
+
+                if (dlIsContinueButtonReady(button)) {
+                    button.click();
+                    return;
+                }
+
+                if (++attempts < maxAttempts) {
+                    dlNativeFallbackTimer = window.setTimeout(
+                        submitWhenReady,
+                        250
+                    );
+                    return;
+                }
+
+                // requestSubmit preserves submit events and the site's native
+                // handler. Only use the legacy submit() fallback when needed.
+                try {
+                    if (typeof dlForm.requestSubmit === 'function') {
+                        dlForm.requestSubmit();
+                    } else {
+                        nativeSubmit(dlForm);
+                    }
+                } catch (error) {
+                    nativeSubmit(dlForm);
+                }
+            }
+
+            submitWhenReady();
+        }
+
         function dlShowResolvedWrapper(sourceWrapper, destination) {
             dlInstallStatusStyles();
 
@@ -510,6 +718,7 @@
 
             dlRedirecting = true;
             safeSessionRemove(dlFetchChallengeRetryKey);
+            safeSessionRemove(dlPostAttemptKey);
             dlStopObserver();
             dlStopCaptchaMonitor();
 
@@ -942,14 +1151,10 @@
         function dlPopulateForm(page, form) {
             var codeState = dlReadCode(page, form);
 
-            // The captured native /dl/ POST includes had_check=1 even though
-            // the initial HTML leaves this hidden field empty. Our fetch-based
-            // submit must reproduce that native form state explicitly.
-            var hadCheck = form.querySelector('input[name="had_check"]');
-
-            if (hadCheck) {
-                hadCheck.value = '1';
-            }
+            // Preserve F95's current hidden-field state. The captured native
+            // no-challenge transaction sent had_check=0; forcing it to 1
+            // changes the request and is not justified by the page markup.
+            // XenForo/hCaptcha remains responsible for its own challenge state.
 
             var token = form.querySelector(
                 'input[name="_xfToken"]'
@@ -968,32 +1173,18 @@
         }
 
         function dlGetRemainingDelay() {
-            // responseStart is safer than requestStart: requestStart precedes
-            // arrival at the origin and could make the POST premature.
-            //
-            // We decode data-code ourselves, so parsing time after the first
-            // response byte counts toward the delay instead of waiting a full
-            // 2150ms after DOMContentLoaded.
-            //
-            // After a challenge, anchor to the real F95 page's appearance
-            // because the effective timing may have reset.
-            var base = null;
-
-            try {
-                var entries = performance.getEntriesByType('navigation');
-                var nav = entries && entries[0];
-
-                if (!dlSawChallenge && nav && nav.responseStart > 0) {
-                    base = nav.responseStart;
-                }
-            } catch (error) {}
-
-            if (base === null) {
-                base = Math.max(
-                    dlDomReadyAt || 0,
-                    dlPageDetectedAt || 0
-                );
+            // The captured F95 handler waits 2100ms after its XenForo page
+            // handler initializes. responseStart predates that initialization
+            // and can make a replayed POST premature. Use DOMContentLoaded /
+            // page discovery, plus a small activation margin, instead.
+            if (dlDomReadyAt === null) {
+                return DL_CODE_DELAY_MS;
             }
+
+            var base = Math.max(
+                dlDomReadyAt || 0,
+                dlPageDetectedAt || 0
+            );
 
             return Math.max(
                 0,
@@ -1024,6 +1215,18 @@
                 dlRedirectTimer = null;
             }
 
+            if (dlNativeFallbackTimer !== null) {
+                window.clearTimeout(dlNativeFallbackTimer);
+                dlNativeFallbackTimer = null;
+            }
+
+            if (dlButtonReadyTimer !== null) {
+                window.clearTimeout(dlButtonReadyTimer);
+                dlButtonReadyTimer = null;
+            }
+
+            dlRemoveSubmitInterceptor();
+
             if (dlStatusPanel && dlStatusPanel.parentNode) {
                 dlStatusPanel.parentNode.removeChild(dlStatusPanel);
             }
@@ -1051,6 +1254,11 @@
                 'was returned. Automatic POST attempts are paused; use the ' +
                 'normal Continue control after verification.'
             );
+
+            dlShowNativeFallback(
+                'Cloudflare returned a second verification page. ' +
+                'Automatic requests are paused; continue with F95 manually.'
+            );
         }
 
         function dlHandleFetchChallenge() {
@@ -1063,6 +1271,10 @@
             ) {
                 dlFetchChallengeReloadAttempted = true;
 
+                // The challenged fetch response is not accepted as a completed
+                // F95 transaction. Permit one clean document-level retry after
+                // Cloudflare has had a chance to verify the browser.
+                safeSessionRemove(dlPostAttemptKey);
                 safeSessionSet(dlFetchChallengeRetryKey, '1');
 
                 if (safeSessionGet(dlFetchChallengeRetryKey) === '1') {
@@ -1078,9 +1290,40 @@
             dlPauseAfterRepeatedChallenge();
         }
 
+        function dlGetContinueButton() {
+            return dlPage && dlPage.querySelector('.js-f95dlContinue');
+        }
+
+        function dlIsContinueButtonReady(button) {
+            if (
+                !button ||
+                !button.isConnected ||
+                button.disabled ||
+                button.getAttribute('aria-disabled') === 'true' ||
+                button.closest('[hidden], .u-hidden')
+            ) {
+                return false;
+            }
+
+            try {
+                var style = window.getComputedStyle(button);
+                if (
+                    style.display === 'none' ||
+                    style.visibility === 'hidden'
+                ) {
+                    return false;
+                }
+            } catch (error) {
+                return false;
+            }
+
+            return true;
+        }
+
         function dlSendRequest() {
             if (
                 dlCancelled ||
+                dlNativeFallback ||
                 dlRequestStarted ||
                 dlRedirecting ||
                 dlChallengeMode ||
@@ -1097,6 +1340,32 @@
             }
 
             if (dlRedirectToGoWrapper()) return;
+
+            var continueButton = dlGetContinueButton();
+
+            // The timer is only a lower bound. Use F95's actual button state as
+            // the readiness signal, so late XenForo initialization cannot cause
+            // an early POST. This is bounded and falls back to native F95.
+            if (!dlIsContinueButtonReady(continueButton)) {
+                if (dlButtonReadyAttempts >= 40) {
+                    dlShowNativeFallback(
+                        'F95 did not enable its Continue control in time. ' +
+                        'Continue with the native F95 flow.'
+                    );
+                    return;
+                }
+
+                if (dlButtonReadyTimer === null) {
+                    dlButtonReadyAttempts += 1;
+                    dlButtonReadyTimer = window.setTimeout(function () {
+                        dlButtonReadyTimer = null;
+                        dlSendRequest();
+                    }, DL_CAPTCHA_POLL_MS);
+                }
+                return;
+            }
+
+            dlButtonReadyAttempts = 0;
 
             if (
                 !document.documentElement ||
@@ -1123,7 +1392,18 @@
                 codeState.field &&
                 !codeState.field.value
             ) {
-                nativeSubmit(dlForm);
+                dlShowNativeFallback(
+                    'F95 download code could not be decoded. Continue with F95 manually.'
+                );
+                return;
+            }
+
+            var method = String(dlForm.method || 'GET').toUpperCase();
+
+            if (method !== 'POST') {
+                dlShowNativeFallback(
+                    'F95 form method changed from POST. Continue with F95 manually.'
+                );
                 return;
             }
 
@@ -1136,25 +1416,43 @@
                 );
 
                 if (action.origin !== window.location.origin) {
-                    nativeSubmit(dlForm);
+                    dlShowNativeFallback(
+                        'The form action is not same-origin. Continue with F95 manually.'
+                    );
                     return;
                 }
             } catch (error) {
-                nativeSubmit(dlForm);
+                dlShowNativeFallback(
+                    'The form action could not be validated. Continue with F95 manually.'
+                );
                 return;
             }
 
             var body;
 
             try {
-                body = new URLSearchParams(new FormData(dlForm));
+                var formData;
+
+                try {
+                    formData = new FormData(dlForm, continueButton);
+                } catch (submitterError) {
+                    formData = new FormData(dlForm);
+                }
+
+                body = new URLSearchParams(formData);
             } catch (error) {
-                nativeSubmit(dlForm);
+                dlShowNativeFallback(
+                    'The native form could not be serialized safely. Continue with F95 manually.'
+                );
                 return;
             }
 
             dlShowActivity(dlGetInitialStatusMessage(dlForm));
             dlRequestStarted = true;
+
+            // Persist before dispatch. If the document is later refreshed after
+            // an ambiguous network outcome, do not automatically POST again.
+            safeSessionSet(dlPostAttemptKey, '1');
 
             if (typeof AbortController === 'function') {
                 dlAbortController = new AbortController();
@@ -1162,12 +1460,14 @@
 
             var fetchOptions = {
                 method: 'POST',
+                mode: 'same-origin',
                 credentials: 'same-origin',
+                redirect: 'follow',
                 body: body,
                 headers: {
-                    'Content-Type':
-                        'application/x-www-form-urlencoded;charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    // Matches the captured native form content type. Do not add
+                    // X-Requested-With: the native F95 request did not send it.
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
             };
 
@@ -1189,6 +1489,9 @@
                         return {
                             ok: response.ok,
                             status: response.status,
+                            url: response.url,
+                            redirected: response.redirected,
+                            contentType: response.headers.get('content-type') || '',
                             html: html
                         };
                     });
@@ -1211,9 +1514,36 @@
                     }
 
                     if (!result.ok) {
-                        throw new Error(
-                            'Download POST returned HTTP ' + result.status
+                        dlShowNativeFallback(
+                            'F95 returned HTTP ' + result.status +
+                            '. The request may have reached the server; ' +
+                            'continue manually rather than automatically resubmitting.'
                         );
+                        return;
+                    }
+
+                    // fetch() cannot reproduce a top-level navigation's
+                    // Sec-Fetch-Dest/Mode headers. At minimum, require a
+                    // same-origin HTML response before trusting the wrapper.
+                    var responseUrl;
+                    try {
+                        responseUrl = new URL(result.url || action.href);
+                    } catch (error) {
+                        dlShowNativeFallback(
+                            'F95 returned an invalid response URL. Continue manually.'
+                        );
+                        return;
+                    }
+
+                    if (
+                        responseUrl.origin !== window.location.origin ||
+                        !/text\/html/i.test(result.contentType)
+                    ) {
+                        dlShowNativeFallback(
+                            'F95 returned an unexpected response type or origin. ' +
+                            'Continue manually.'
+                        );
+                        return;
                     }
 
                     var parsed = new DOMParser().parseFromString(
@@ -1234,9 +1564,12 @@
                         return;
                     }
 
-                    // Unknown response structure: use native form flow instead
-                    // of guessing the destination from unrelated page links.
-                    nativeSubmit(dlForm);
+                    // The POST has already been sent. Never issue a second POST
+                    // automatically just because the response was unfamiliar.
+                    dlShowNativeFallback(
+                        'F95 response did not contain the expected f95dl-go wrapper. ' +
+                        'The request may already have been processed; continue manually.'
+                    );
                 })
                 .catch(function () {
                     if (fetchTimeoutTimer !== null) {
@@ -1247,32 +1580,39 @@
                     if (
                         dlCancelled ||
                         dlRedirecting ||
-                        dlPausedAfterChallenge
+                        dlPausedAfterChallenge ||
+                        dlNativeFallback
                     ) {
                         return;
                     }
 
-                    nativeSubmit(dlForm);
+                    dlShowNativeFallback(
+                        'The F95 request failed or timed out. Its server-side status ' +
+                        'is unknown; continue manually to avoid an automatic duplicate POST.'
+                    );
                 });
         }
 
         function dlScheduleRequest() {
             if (
                 dlCancelled ||
+                dlNativeFallback ||
                 dlRequestStarted ||
                 dlRedirecting ||
                 dlChallengeMode ||
                 dlPausedAfterChallenge ||
                 dlTimer !== null ||
+                dlButtonReadyTimer !== null ||
                 !dlPage ||
-                !dlForm
+                !dlForm ||
+                dlDomReadyAt === null
             ) {
                 return;
             }
 
-            // Show the same F95 spinner immediately during the native 2.15s
-            // script-check delay. When hCaptcha is present, only show it once
-            // the human has completed the challenge and a token is available.
+            // Wait for the captured XenForo code delay plus an initialization
+            // margin. With hCaptcha, wait until its existing response field is
+            // populated before displaying activity or issuing the request.
             if (
                 dlHasHCaptcha(dlForm) &&
                 !dlReadHCaptchaToken(dlForm)
@@ -1297,7 +1637,7 @@
         }
 
         function dlArm() {
-            if (dlCancelled || dlRedirecting) return;
+            if (dlCancelled || dlNativeFallback || dlRedirecting) return;
 
             if (dlIsCloudflareChallengeDocument(document)) {
                 dlEnterChallengeMode();
@@ -1353,6 +1693,17 @@
                 dlPageDetectedAt = performance.now();
             }
 
+            dlRememberAutoAttribute(page);
+
+            if (dlPriorPostAttempt) {
+                dlShowNativeFallback(
+                    'A previous automatic POST was already attempted in this tab. ' +
+                    'To avoid duplicate requests, automatic retry is disabled. ' +
+                    'Continue with F95 manually if needed.'
+                );
+                return;
+            }
+
             // Match the source handler's option attribute name.
             // Doing this early avoids a competing native auto-countdown when
             // our observer runs before XenForo activates the handler.
@@ -1383,12 +1734,13 @@
 
             if (!form.dataset.f95SkipSubmitListener) {
                 form.dataset.f95SkipSubmitListener = '1';
+                dlSubmitForm = form;
 
-                form.addEventListener('submit', function (event) {
-                    // After a repeated Cloudflare challenge, explicit user
-                    // action, or an hCaptcha initialization failure, permit
-                    // F95's own native submission path.
+                dlSubmitHandler = function (event) {
+                    // Native fallback, explicit cancellation, and unresolved
+                    // CAPTCHA states must remain under F95's own submit handler.
                     if (
+                        dlNativeFallback ||
                         dlPausedAfterChallenge ||
                         dlCancelled ||
                         dlCaptchaNativeFallback
@@ -1414,7 +1766,9 @@
                     event.stopImmediatePropagation();
 
                     dlScheduleRequest();
-                }, true);
+                };
+
+                form.addEventListener('submit', dlSubmitHandler, true);
             }
 
             if (hasHCaptcha) {
@@ -1429,7 +1783,7 @@
         }
 
         function dlOnMutation() {
-            if (dlCancelled || dlRedirecting) return;
+            if (dlCancelled || dlNativeFallback || dlRedirecting) return;
 
             if (dlIsCloudflareChallengeDocument(document)) {
                 dlEnterChallengeMode();
